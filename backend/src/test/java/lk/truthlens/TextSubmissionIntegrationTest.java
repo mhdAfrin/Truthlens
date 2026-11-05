@@ -155,11 +155,11 @@ class TextSubmissionIntegrationTest {
         var second = accepted(g, "A copied article for factual review.");
         assertNotEquals(first.get("id"), second.get("id"));
         assertEquals(first.get("id"), first.get("requestId"));
-        assertEquals("PROCESSING", first.get("status").asText());
+        assertEquals("QUEUED", first.get("status").asText());
         var row = records.findById(UUID.fromString(first.get("id").asText())).orElseThrow();
         assertNull(row.getOwnerId());
         assertNotNull(row.getGuestScope());
-        assertEquals(Submission.Status.PROCESSING, row.getStatus());
+        assertEquals(Submission.Status.QUEUED, row.getStatus());
         assertEquals(2, records.count());
         mvc.perform(get("/api/verifications/" + first.get("id").asText()).session(g.session()))
             .andExpect(status().isOk())
@@ -186,11 +186,11 @@ class TextSubmissionIntegrationTest {
         workflow.preparePending();
         mvc.perform(get(path).session(g.session()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status").value("AWAITING_VERIFICATION"))
-            .andExpect(jsonPath("$.stage").value("TEXT_PREPARED"))
+                .andExpect(jsonPath("$.status").value("PROCESSING"))
+                .andExpect(jsonPath("$.stage").value("EXTRACTING_CLAIMS"))
             .andExpect(jsonPath("$.textMetrics.words").value(4))
             .andExpect(jsonPath("$.textMetrics.paragraphs").value(2))
-            .andExpect(jsonPath("$.reportAvailable").value(true))
+                .andExpect(jsonPath("$.reportAvailable").value(false))
             .andExpect(jsonPath("$.claims[0].finding").value("Not assessed"));
     }
 
@@ -199,11 +199,37 @@ class TextSubmissionIntegrationTest {
         var g = guest();
         var reply = accepted(g, "Durable intake record.");
         var id = UUID.fromString(reply.get("id").asText());
-        assertEquals(Submission.Status.PROCESSING, records.findById(id).orElseThrow().getStatus());
+
+        // A new submission starts in the queue.
+        assertEquals(
+                Submission.Status.QUEUED,
+                records.findById(id).orElseThrow().getStatus()
+        );
+
+        // First run moves the submission into processing.
         workflow.preparePending();
-        String snapshot = records.findById(id).orElseThrow().getReportJson();
+
+        assertEquals(
+                Submission.Status.PROCESSING,
+                records.findById(id).orElseThrow().getStatus()
+        );
+
+        // Second run performs verification.
         workflow.preparePending();
-        assertEquals(snapshot, records.findById(id).orElseThrow().getReportJson());
+
+        var completed = records.findById(id).orElseThrow();
+
+        assertEquals(Submission.Status.COMPLETED, completed.getStatus());
+
+        String snapshot = completed.getReportJson();
+
+        // Running again must not change a completed report.
+        workflow.preparePending();
+
+        assertEquals(
+                snapshot,
+                records.findById(id).orElseThrow().getReportJson()
+        );
     }
 
     @Test

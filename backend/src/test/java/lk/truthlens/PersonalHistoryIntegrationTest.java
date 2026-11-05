@@ -126,12 +126,12 @@ class PersonalHistoryIntegrationTest {
         String id = create(session, "An article submitted for verification.");
         var row = records.findById(UUID.fromString(id)).orElseThrow();
         assertEquals(alice.getId(), row.getOwnerId());
-        assertEquals(Submission.Status.AWAITING_VERIFICATION, row.getStatus());
+        assertEquals(Submission.Status.PROCESSING, row.getStatus());
         assertTrue(row.getReportJson().contains("Not assessed"));
         mvc.perform(get("/api/verifications/" + id).session(session))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.stored").value(true))
-            .andExpect(jsonPath("$.status").value("AWAITING_VERIFICATION"))
+                .andExpect(jsonPath("$.status").value("PROCESSING"))
             .andExpect(jsonPath("$.content").value(row.getContent()))
             .andExpect(jsonPath("$.ownerId").doesNotExist());
     }
@@ -180,8 +180,8 @@ class PersonalHistoryIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items[0].title").value("My saved article about transport."))
             .andExpect(jsonPath("$.items[0].createdAt").exists())
-            .andExpect(jsonPath("$.items[0].status").value("AWAITING_VERIFICATION"))
-            .andExpect(jsonPath("$.items[0].reportAvailable").value(true));
+                .andExpect(jsonPath("$.items[0].status").value("PROCESSING"))
+                .andExpect(jsonPath("$.items[0].reportAvailable").value(false));
     }
 
     @Test

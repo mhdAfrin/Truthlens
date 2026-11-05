@@ -50,7 +50,7 @@ export function TextSubmissionForm() {
         const current = (await api("/api/verifications/" + accepted.id)) as VerificationReport;
         if (!live) return;
         setReport(current);
-        if (current.status === "PROCESSING") timer = setTimeout(poll, 1000);
+        if (current.status === "PROCESSING" || current.status === "QUEUED") timer = setTimeout(poll, 1000);
       } catch (e) {
         if (live) setPollError((e as Error).message);
       }
@@ -78,6 +78,7 @@ export function TextSubmissionForm() {
         tab === "url"
           ? await submitArticleUrl(url, !!user)
           : await submitVerification(text, !!user);
+      sessionStorage.setItem("truthlens-latest-verification", request.id);
       setAccepted(request);
       setReport(null);
     } catch (e) {
@@ -95,7 +96,7 @@ export function TextSubmissionForm() {
       >
         <CheckCircle2 size={34} />
         <span className="eyebrow">SUBMISSION RECEIVED</span>
-        <h2 id="submission-confirmed-title">Processing started</h2>
+        <h2 id="submission-confirmed-title">Verification progress</h2>
         <p role="status">{accepted.message}</p>
         {accepted.originalUrl && (
           <p className="submission-source">
@@ -114,11 +115,8 @@ export function TextSubmissionForm() {
         </div>
         <div className="submission-real-status" aria-live="polite">
           <strong>{statusLabels[report?.status || accepted.status] || "Processing"}</strong>
-          <p>
-            {report?.stage === "TEXT_PREPARED"
-              ? "Your text is prepared. Evidence verification has not been performed yet."
-              : "Your text is being prepared for verification."}
-          </p>
+          <p>Current stage: {({ RECEIVED: "Received", EXTRACTING_CLAIMS: "Extracting factual claims", SEARCHING_EVIDENCE: "Searching public sources", REPORT_READY: "Report ready", FAILED: "Verification failed" } as Record<string,string>)[report?.stage || "RECEIVED"] || report?.stage || "Queued"}</p>
+          {report?.error && <p role="alert" className="error">{report.error} Partial findings can be opened below.</p>}
           {typeof report?.textMetrics?.characters === "number" && (
             <small>
               {report.textMetrics.characters.toLocaleString()} characters ·{" "}

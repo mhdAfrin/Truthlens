@@ -101,7 +101,7 @@ public class HistoryService {
                     "inputType",
                     submission.getInputType(),
                     "reportAvailable",
-                    submission.getStatus() != Submission.Status.PROCESSING
+                    submission.getStatus() == Submission.Status.COMPLETED || submission.getStatus() == Submission.Status.FAILED
                 )
             )
             .toList();

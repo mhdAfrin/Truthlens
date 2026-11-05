@@ -9,6 +9,7 @@ import java.util.UUID;
 public class Submission {
 
     public enum Status {
+        QUEUED,
         AWAITING_VERIFICATION,
         PROCESSING,
         COMPLETED,

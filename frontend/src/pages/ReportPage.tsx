@@ -100,26 +100,29 @@ export function ReportPage({
         </p>
       </div>
       {report.status && (
-        <p>
-          <span className={"processing-status " + report.status.toLowerCase()}>
-            {statusLabels[report.status] || report.status}
-          </span>
-        </p>
+          <div>
+            <p>
+      <span className={"processing-status " + report.status.toLowerCase()}>
+        {statusLabels[report.status] || report.status}
+      </span>
+            </p>
+
+            {report.status === "PROCESSING" && report.stage && (
+                <p role="status">
+                  Current analysis stage: {report.stage.replace(/_/g, " ")}
+                </p>
+            )}
+          </div>
       )}
       <div className="report-disclaimer">
         <Info size={17} />
-        {sample
-          ? "All names, passages and findings in this case study are fictional. It demonstrates the report design; no live evidence was retrieved."
-          : report.stored
-            ? report.status === "PROCESSING"
-              ? "Your submission is being prepared. No fact-check has been performed yet."
-              : "Your text is prepared and awaiting evidence verification. No evidence or verdict has been produced."
-            : "This text has not been verified. No evidence or verdict has been produced."}
+        {sample ? "This is a fictional example, not a live verification." : report.status === "COMPLETED" ? "Claim extraction and public-source discovery finished. Search results are not proof; any unresolved claims remain Insufficient evidence or Not assessed." : report.status === "FAILED" ? "Verification failed. Available partial claims are shown below." : "Verification is still in progress. No final verdict is available."}
       </div>
+      {report.error && <p className="error" role="alert">{report.error}</p>}
       <div className="report-layout">
         <aside className="claim-navigation">
           <div className="section-heading">
-            <h2>{sample ? "The claims" : "Submitted passages"}</h2>
+            <h2>{sample ? "The claims" : "Extracted claims"}</h2>
             <span>{report.claims.length}</span>
           </div>
           {report.claims.map((c, i) => (
@@ -168,12 +171,13 @@ export function ReportPage({
             <article className="claim-panel panel">
               <div className="claim-panel-head">
                 <span className="eyebrow">
-                  {sample ? "CLAIM" : "PASSAGE"} {String(index + 1).padStart(2, "0")} /{" "}
+                  {sample ? "CLAIM" : "EXTRACTED CLAIM"} {String(index + 1).padStart(2, "0")} /{" "}
                   {String(report.claims.length).padStart(2, "0")}
                 </span>
                 <Badge finding={claim.finding} />
               </div>
               <h2>{claim.text}</h2>
+              {!sample && <p className="fine-print">Type: {claim.claimType || "Unclassified"} · Original passage: {claim.originalPassage || claim.text}</p>}
               <div className="report-tabs" role="tablist" aria-label="Claim details">
                 {["Overview", "Evidence", "Context & dates", "Sources"].map((t) => (
                   <button
@@ -209,7 +213,7 @@ export function ReportPage({
                         <ShieldCheck size={17} />
                         Assessment confidence
                       </span>
-                      <strong>{sample ? "Illustrative only" : "Not assessed"}</strong>
+                      <strong>{sample ? "Illustrative only" : claim.confidence}</strong>
                     </div>
                     <p className="fine-print">
                       {claim.confidence} Confidence is not a guarantee of correctness.
@@ -229,9 +233,17 @@ export function ReportPage({
                       <p>
                         {sample
                           ? "Fictional passages show how both sides of a claim will be presented."
-                          : "The evidence service is not connected. Nothing has been searched."}
+                          : `Evidence search: ${claim.searchStatus || "Not started"}. ${claim.searchError || "Search hits are contextual leads, not confirmed support."}`}
                       </p>
                     </div>
+                    {!sample && (claim.evidence || []).map((source) => (
+                      <div className="evidence-card" key={source.url}>
+                        <span className="eyebrow">{source.sourceType} · {source.relationship}</span>
+                        <h3><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a></h3>
+                        <p>{source.snippet}</p>
+                        <small>{source.publisher} · Publication date: {source.publicationDate}</small>
+                      </div>
+                    ))}
                     {[
                       ["Supporting evidence", claim.support, "support"],
                       ["Contradicting evidence", claim.against, "against"],
@@ -318,7 +330,68 @@ export function ReportPage({
                         </div>
                       </div>
                     ) : (
-                      <p>No sources are available for this submission yet.</p>
+                        <div>
+                          {(claim.evidence || []).length > 0 ? (
+                              <>
+                                <p>
+                                  Retrieved sources for this claim. Search results are not
+                                  automatically verified evidence.
+                                </p>
+
+                                {Array.from(
+                                    new Map(
+                                        (claim.evidence || []).map((source) => [
+                                          source.url.trim().replace(/\/$/, "").toLowerCase(),
+                                          source,
+                                        ])
+                                    ).values()
+                                ).map((source) => (
+                                    <div className="evidence-card" key={source.url}>
+          <span className="eyebrow">
+            {source.sourceType || "Unclassified"} ·{" "}
+            {source.relationship || "Contextual source"}
+          </span>
+
+                                      <h3>
+                                        <a
+                                            href={source.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                          {source.title || source.url} ↗
+                                        </a>
+                                      </h3>
+
+                                      <p>{source.snippet || "No description available."}</p>
+
+                                      <small>
+                                        Publisher: {source.publisher || "Unknown"}
+                                        {" · "}
+                                        Publication date: {source.publicationDate || "Unavailable"}
+                                      </small>
+
+                                      <p className="fine-print">
+                                        Source URL:{" "}
+                                        <a
+                                            href={source.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ overflowWrap: "anywhere" }}
+                                        >
+                                          {source.url}
+                                        </a>
+                                      </p>
+                                    </div>
+                                ))}
+                              </>
+                          ) : (
+                              <p>
+                                {claim.searchError
+                                    ? `Source search failed: ${claim.searchError}`
+                                    : "No sources were retrieved for this claim."}
+                              </p>
+                          )}
+                        </div>
                     )}
                     <button className="text-button" onClick={() => go("sources")}>
                       Explore the source library <ArrowUpRight size={15} />

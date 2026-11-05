@@ -63,5 +63,26 @@ public final class ReportSnapshotFactory {
         }
     }
 
+    public static String withClaims(Submission row, ObjectMapper json, List<Map<String,Object>> claims, String stage) {
+        try {
+            var report = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(snapshot(row, json, TextStatistics.measure(row.getContent()), stage));
+            report.set("claims", json.valueToTree(claims));
+            report.put("evidenceMethod", "Wikipedia public search (discovery only; no automatic truth verification)");
+            return json.writeValueAsString(report);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("Could not save claim report", e);
+        }
+    }
+
+    public static String failure(Submission row, ObjectMapper json, String error) {
+        try {
+            var report = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(row.getReportJson());
+            report.put("stage", "FAILED"); report.put("error", error);
+            return json.writeValueAsString(report);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException("Could not save partial report", e);
+        }
+    }
+
     private ReportSnapshotFactory() {}
 }

@@ -26,7 +26,7 @@ public class AdminQueryRepository {
 
     public long awaitingSubmissions() {
         return count(
-            "SELECT COUNT(*) FROM verification_records WHERE status='AWAITING_VERIFICATION'"
+            "SELECT COUNT(*) FROM verification_records WHERE status IN ('AWAITING_VERIFICATION','QUEUED')"
         );
     }
 

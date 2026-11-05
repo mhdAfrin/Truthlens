@@ -22,7 +22,9 @@ export function StoredReportPage({ id }: { id: string }) {
         .then((report) => {
           if (!live) return;
           setResult({ key, report });
-          if (report.status === "PROCESSING") timer = setTimeout(load, 1000);
+            if (report.status === "PROCESSING" || report.status === "QUEUED") {
+                timer = setTimeout(load, 1000);
+            }
         })
         .catch(async (e) => {
           if (!live) return;

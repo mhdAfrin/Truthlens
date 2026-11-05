@@ -67,7 +67,7 @@ public class SubmissionService {
         submission.setGuestScope(email == null ? Objects.requireNonNull(guestScope) : null);
         submission.setContent(content);
         submission.setCreatedAt(Instant.now());
-        submission.setStatus(Submission.Status.PROCESSING);
+        submission.setStatus(Submission.Status.QUEUED);
         String normalizedText = content.replaceAll("(?U)\\s+", " ").strip();
         int characterCount = normalizedText.codePointCount(0, normalizedText.length());
         submission.setTitle(
@@ -96,12 +96,12 @@ public class SubmissionService {
         var receipt = new LinkedHashMap<String, Object>();
         receipt.put("id", submission.getId());
         receipt.put("requestId", submission.getId());
-        receipt.put("status", "PROCESSING");
+        receipt.put("status", "QUEUED");
         receipt.put(
-            "message",
-            article == null
-                ? "Submission received. Processing has started."
-                : "Article imported. Processing has started."
+                "message",
+                article == null
+                        ? "Submission received. Processing has started."
+                        : "Article imported and queued for claim extraction."
         );
         receipt.put("reportAvailable", false);
         receipt.put("inputType", submission.getInputType());

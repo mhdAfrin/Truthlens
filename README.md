@@ -1,28 +1,4 @@
-# TruthLens — Sprint 1
-
-This is the Sprint 1 baseline of our news-verification group project.
-
-Implemented stories:
-- US-01: User registration with validation, duplicate-email checks and password hashing.
-- US-02: User login/logout with server-side sessions and access checks.
-- US-03: Private verification history with date/status filters and owner-scoped report access.
-- US-05: Article text submission with validation and the configured input limit.
-- US-06: Public article URL submission with extraction and destination checks.
-
-This version stores submissions and prepares text metadata. It does not perform AI fact checking. Sprint 2 claim/evidence/verdict changes and the later Python AI agent are not included. Existing admin and news interface features from the baseline are retained.
-
-React and TypeScript provide the frontend, Java/Spring Boot provides the backend, and SQL migrations define the database. The local preview uses persistent H2; PostgreSQL configuration is provided for deployment.
-
-Requirements: Node.js 22+, Java 17+ and Maven. Run these commands from this folder:
-
-```powershell
-npm install
-npm run dev
-```
-
-The source contains no local database, private credentials, installed packages or model files. Existing private account data is not part of this export.
-
-## Step-by-step instructions
+# How to open TruthLens
 
 Follow these steps to run the website on your laptop.
 

@@ -4,13 +4,9 @@ node_modules/
 **/dist/
 **/.tools/
 **/.local-data/
-**/.runtime/
-**/.logs/
-**/__pycache__/
-.env
-.env.*
-!.env.example
-.idea/
-*.iml
+**/.env
 *.log
 *.tsbuildinfo
+
+.idea/
+*.iml

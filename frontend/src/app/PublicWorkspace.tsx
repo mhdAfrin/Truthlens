@@ -37,6 +37,13 @@ export function PublicWorkspace() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   useEffect(() => {
+    const latest = sessionStorage.getItem("truthlens-latest-verification");
+    if (!latest) return;
+    api<VerificationReport>("/api/verifications/" + encodeURIComponent(latest))
+      .then((item) => setReports([item, sampleReport]))
+      .catch(() => {});
+  }, [page]);
+  useEffect(() => {
     setReports([sampleReport]);
     setReport(sampleReport);
     setSaved([]);
@@ -86,7 +93,7 @@ export function PublicWorkspace() {
         />
       )}{" "}
       {page === "claims" && <ClaimsPage reports={reports} openReport={openReport} />}{" "}
-      {page === "sources" && <SourcesPage />} {page === "method" && <MethodPage />}{" "}
+      {page === "sources" && <SourcesPage reports={reports} />} {page === "method" && <MethodPage />}{" "}
       {page === "help" && <HelpPage />} {page === "login" && <LoginPage />}
       {page === "account" && (
         <Protected>

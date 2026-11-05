@@ -1,4 +1,5 @@
 export const statusLabels: Record<string, string> = {
+  QUEUED: "Queued",
   AWAITING_VERIFICATION: "Awaiting verification",
   PROCESSING: "Processing",
   COMPLETED: "Completed",

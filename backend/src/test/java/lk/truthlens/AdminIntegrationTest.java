@@ -148,7 +148,7 @@ class AdminIntegrationTest {
         mvc.perform(get("/api/admin/system").session(s.session()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.databaseStatus").value("Connected"))
-            .andExpect(jsonPath("$.migrations.length()").value(6));
+            .andExpect(jsonPath("$.migrations.length()").value(7));
     }
 
     @Test

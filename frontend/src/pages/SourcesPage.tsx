@@ -1,8 +1,9 @@
 import { useState } from "react";
+import type { VerificationReport } from "../types/report";
 import { ArrowRight, Clock, Globe, Search } from "lucide-react";
 
 import { Empty, Note, SectionTitle } from "../components/UI";
-export function SourcesPage() {
+export function SourcesPage({ reports = [] }: { reports?: VerificationReport[] }) {
   const [q, setQ] = useState(""),
     [expanded, setExpanded] = useState(false);
   const visible = "fictional riverton transport authority".includes(q.toLowerCase());
@@ -13,6 +14,14 @@ export function SourcesPage() {
         title="Good evidence has a beginning."
         description="See a source’s origin, its assessment method, and what we still don’t know."
       />
+      {reports.flatMap((r) => r.claims.flatMap((c) => c.evidence || [])).filter((e, i, all) => all.findIndex((x) => x.url === e.url) === i).filter((e) => (e.title + e.publisher).toLowerCase().includes(q.toLowerCase())).map((source) => (
+        <div className="source-record panel" key={source.url}>
+          <span className="eyebrow">DISCOVERED SOURCE · {source.sourceType}</span>
+          <h2><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a></h2>
+          <p>{source.snippet}</p>
+          <p>{source.publisher} · {source.relationship} · Date: {source.publicationDate}</p>
+        </div>
+      ))}
       <div className="source-library-banner">
         <span>
           <Globe size={35} />

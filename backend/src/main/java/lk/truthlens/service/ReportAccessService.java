@@ -49,7 +49,7 @@ public class ReportAccessService {
             var result = (ObjectNode) json.readTree(submission.getReportJson());
             result.put("status", submission.getStatus().name());
             result.put("inputType", submission.getInputType());
-            result.put("reportAvailable", submission.getStatus() != Submission.Status.PROCESSING);
+            result.put("reportAvailable", submission.getStatus() == Submission.Status.COMPLETED || submission.getStatus() == Submission.Status.FAILED);
             return result;
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException("Stored report could not be read", e);

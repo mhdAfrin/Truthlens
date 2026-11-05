@@ -103,7 +103,7 @@ class UrlSubmissionIntegrationTest {
         mvc.perform(get("/api/verifications/" + id).session(session))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.originalUrl").value("https://news.org/article"))
-            .andExpect(jsonPath("$.status").value("AWAITING_VERIFICATION"));
+                .andExpect(jsonPath("$.status").value("PROCESSING"));
         mvc.perform(get("/api/verifications/" + id)).andExpect(status().isNotFound());
     }
 
