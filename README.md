@@ -1,97 +1,108 @@
-# How to open TruthLens
+# TruthLens
 
-Follow these steps to run the website on your laptop.
+**Multi-Agent AI-Based News Article Verification System**
 
-## 1. Open the project folder
+TruthLens is a web application designed to verify news articles using AI-based claim analysis, evidence retrieval, and source credibility evaluation.
 
-1. Open VS Code.
-2. Click **File → Open Folder**.
-3. Select the TruthLens folder.
+## Tech Stack
 
-Check the left side of VS Code. You should see these three folders together:
+- **Frontend:** React, TypeScript, Vite
+- **Backend:** Java 17, Spring Boot
+- **Database:** PostgreSQL, H2 (Preview)
+- **AI:** Python Multi-Agent System (Under Development)
+- **Tools:** VS Code, IntelliJ IDEA, Docker Desktop
 
-- frontend
-- backend
-- database
+## Features
 
-You should also see a file named **package.json**. Do not open only the frontend folder.
+- User registration and login
+- News article submission (text and URL)
+- Verification history and status tracking
+- Administrator dashboard
+- PostgreSQL persistent storage
+- Basic verification prototype
 
-## 2. Open a terminal
+## Project Structure
 
-At the top of VS Code, click **Terminal → New Terminal**.
+```text
+Truthlens/
+├── frontend/
+├── backend/
+├── database/
+├── package.json
+└── README.md
+```
 
-A panel opens at the bottom. This is where you type the commands below.
+## How to Run
 
-If an older copy of TruthLens is already running in another terminal, stop it with **Ctrl+C** first.
+### Option 1 — Quick Start (H2 Preview)
 
-## 3. Install the project packages
+**Requirements:** Node.js 22+, Java 17+, and Maven.
 
-Type this in the terminal and press Enter:
+Open a terminal in the project root:
 
 ```powershell
 npm install
-```
-
-Wait until it finishes and you can type another command.
-
-You normally do this only once after downloading the project. You need an internet connection for the first installation.
-
-## 4. Start TruthLens
-
-In the same terminal, type this and press Enter:
-
-```powershell
 npm run dev
 ```
 
-This starts both parts of the application:
+Open: http://127.0.0.1:5173
 
-- The website that you see and click.
-- The Java program that handles accounts and saves submissions.
+### Option 2 — PostgreSQL
 
-Wait until the terminal says **Started TruthLensApplication**. The first start may take longer because it downloads Java libraries.
+**Requirements:** Docker Desktop, Node.js 22+, Java 17+, Maven, and VS Code or IntelliJ IDEA.
 
-## 5. Open the website
-
-Open Chrome or another browser. Paste this address into the address bar:
-
-http://127.0.0.1:5173
-
-For the administrator login, use:
-
-http://127.0.0.1:5173/admin
-
-Keep the VS Code terminal open while using the website.
-
-## How to stop it
-
-Click inside the terminal and press **Ctrl+C**.
-
-## How to start it next time
-
-Open the same project folder in VS Code, open a terminal, and run:
+**1. Start the database**
 
 ```powershell
+cd database
+Copy-Item .env.example .env
+```
+
+Set the database username, password, and `DB_PORT` in `database/.env`.
+
+```powershell
+docker compose up -d
+```
+
+**2. Start the backend**
+
+Open `backend/`.
+
+Configure environment variables:
+
+```text
+DB_URL=jdbc:postgresql://127.0.0.1:5433/truthlens
+DB_USER=truthlens
+DB_PASSWORD=YOUR_LOCAL_PASSWORD
+```
+
+Run:
+
+```powershell
+mvn spring-boot:run
+```
+
+Use port `5432` instead of `5433` if your Docker database uses the default port. In IntelliJ IDEA, you can run the same goal using bundled Maven.
+
+**3. Start the frontend**
+
+```powershell
+cd frontend
+npm install
 npm run dev
 ```
 
-You do not normally need to run npm install again.
+Frontend: http://127.0.0.1:5173
 
-## If it does not start
+Backend: http://127.0.0.1:8093
 
-- **Cannot find package.json:** you opened the wrong folder. Open the folder containing frontend, backend, database and package.json.
-- **Port already in use:** another copy is running. Stop that copy before starting this one.
-- **npm is not recognized:** Node.js must be installed.
-- **Java or Maven is missing:** install Java 17 or newer and Maven, then restart VS Code. Node.js 22 or newer is required for this project.
+## Development Status
 
-If you are unsure, copy the terminal error instead of changing the code.
+Authentication, article submission, verification history, and PostgreSQL persistence are implemented and locally tested.
 
-## What the folders mean
+The complete Python multi-agent AI verification system is still under development.
 
-- **frontend:** the website's appearance and buttons.
-- **backend:** login, accounts, submissions and other server work.
-- **database:** instructions that create the database tables.
+## Security
 
-The normal local run creates and uses its database automatically. You do not need to set up PostgreSQL to try the website on your laptop.
+Never commit `.env` files, passwords, or API keys.
 
-This version saves and prepares articles. It does not perform AI fact-checking yet.
