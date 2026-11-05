@@ -1,5 +1,18 @@
 export type Finding =
-  "Supported" | "Contradicted" | "Mixed evidence" | "Insufficient evidence" | "Not assessed";
+  "Supported" | "Contradicted" | "Mixed evidence" | "Mixed" | "Insufficient evidence" | "Not assessed";
+export type EvidenceSource = {
+  title: string;
+  url: string;
+  snippet: string;
+  sourceType: string;
+  relationship: string;
+  publisher: string;
+  publicationDate: string;
+  quote?: string;
+  sourceTypeReason?: string;
+  independenceNote?: string;
+};
+
 export type Claim = {
   id: number;
   claimType?: string;
@@ -8,7 +21,7 @@ export type Claim = {
   endOffset?: number;
   searchStatus?: string;
   searchError?: string;
-  evidence?: {title:string;url:string;snippet:string;sourceType:string;relationship:string;publisher:string;publicationDate:string}[];
+  evidence?: EvidenceSource[];
   text: string;
   finding: Finding;
   explanation: string;

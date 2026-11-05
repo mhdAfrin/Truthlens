@@ -115,7 +115,7 @@ export function TextSubmissionForm() {
         </div>
         <div className="submission-real-status" aria-live="polite">
           <strong>{statusLabels[report?.status || accepted.status] || "Processing"}</strong>
-          <p>Current stage: {({ RECEIVED: "Received", EXTRACTING_CLAIMS: "Extracting factual claims", SEARCHING_EVIDENCE: "Searching public sources", REPORT_READY: "Report ready", FAILED: "Verification failed" } as Record<string,string>)[report?.stage || "RECEIVED"] || report?.stage || "Queued"}</p>
+          <p>Current stage: {({ RECEIVED: "Received", EXTRACTING_CLAIMS: "Extracting factual claims", SEARCHING_EVIDENCE: "Searching public sources", ASSESSING_CLAIMS: "Comparing claims with retrieved passages", REPORT_READY: "Report ready", FAILED: "Verification failed" } as Record<string,string>)[report?.stage || "RECEIVED"] || report?.stage || "Queued"}</p>
           {report?.error && <p role="alert" className="error">{report.error} Partial findings can be opened below.</p>}
           {typeof report?.textMetrics?.characters === "number" && (
             <small>

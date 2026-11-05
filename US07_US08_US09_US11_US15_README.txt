@@ -1,14 +1,27 @@
-TRUTHLENS - INTEGRATED FIVE-STORY PROTOTYPE
+TRUTHLENS - SPRINT 2 VERIFICATION
 
-Run on Windows: open the TruthLens folder in IntelliJ, run the root npm script "dev" as before.
-Prerequisites: Node.js, Java 17+, Maven. The root dev script starts the Spring Boot preview backend with its H2 test database and Vite frontend.
+Run npm install and npm run dev from the project folder. The local preview
+uses H2. See README.md for the Java, Maven and Node.js requirements.
 
-US-07: Queued -> Processing (claim extraction / evidence search) -> Completed, or Failed. View the stage, open stored reports and partial findings on failure.
-US-08: Sentence-based potential-claim extraction with unique per-report IDs, original passages and offsets, and a basic opinion/prediction heuristic. This is not a machine-learning claim classifier.
-US-09: Attempts live public-source discovery via Wikipedia's search API, distinguishes RESULTS_FOUND, NO_RESULTS, SEARCH_FAILED, and NOT_APPLICABLE. Internet access is required. Search results are leads, not independently verified evidence.
-US-11: Displays retrieved source titles, URLs, excerpts, source types, publishers and dates (when available); deduplicates by URL. A source link can be opened in a browser.
-US-15: Every claim has an explicit finding and explanation. Unverified factual claims receive Insufficient evidence, while subjective sentences receive Not assessed. This prototype does NOT automatically conclude Supported or Contradicted, because source-search results cannot justify those verdicts.
+US-07: The report saves each processing stage before the next stage starts.
+Search failures preserve partial findings. Sprint 1 requests prepared by an
+earlier version can be opened from history and submitted again for assessment.
 
-IMPORTANT: The prototype is NOT a production fact-checking system. It does not establish factual truth, assess independent corroboration, or guarantee external evidence availability. Completed means the pipeline finished, not that all claims were verified.
+US-08: The report lists sentence-level potential claims with the original
+passages and offsets. Heuristics identify questions, first-person opinions
+and predictions, and retain factual statements about reported announcements.
 
-Validation in this environment: TypeScript typecheck passed. Backend compilation, startup and end-to-end behavior were not executed because Maven and a runnable database were unavailable here. Please do not describe this as end-to-end tested.
+US-09: Wikipedia candidates can have titles different from the claim. The
+report shows exact retrieved passages and links behind supported and
+contradicted findings, alongside a separate section for contextual sources.
+
+US-11: Each source has a clickable page link, title, publisher and date
+when available. Wikipedia results are deduplicated by page ID. The original
+source's role is Unknown where it cannot be established, and Wikipedia pages
+are not counted as independent corroboration.
+
+US-15: The verifier checks direct matching statements and founding-year
+claims with matching entities and events. Conflicts are labeled Mixed
+evidence. Other claims with no clear match receive Insufficient evidence.
+Search failures are labeled Not assessed. The current rules do not assess
+arbitrary paraphrases or establish independent corroboration.

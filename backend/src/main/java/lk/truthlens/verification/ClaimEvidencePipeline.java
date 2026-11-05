@@ -2,6 +2,7 @@ package lk.truthlens.verification;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -19,7 +20,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
@@ -27,31 +27,31 @@ public class ClaimEvidencePipeline {
 
     private final ObjectMapper json;
 
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
-            .build();
+    private final HttpClient http;
 
     private static final Pattern OPINION = Pattern.compile(
-            "\\b(i think|i believe|in my opinion|i feel|best|worst|" +
-                    "beautiful|amazing|terrible|wonderful|should|ought to|" +
-                    "prefer|favorite)\\b",
-            Pattern.CASE_INSENSITIVE
+        "^(?:i think|i believe|in my opinion|i feel|i prefer)\\b",
+        Pattern.CASE_INSENSITIVE
     );
 
     private static final Pattern PREDICTION = Pattern.compile(
-            "\\b(will|going to|probably will|expected to|forecast to|"
-                    + "predicted to|likely to|unlikely to)\\b",
-            Pattern.CASE_INSENSITIVE
+        "\\b(?:will|going to|expected to|forecast to|predicted to|likely to|unlikely to)\\b",
+        Pattern.CASE_INSENSITIVE
     );
 
-    private static final Pattern FOUNDING_CLAIM = Pattern.compile(
-            "(?i)^(.+?)\\s+(?:was|were|is)\\s+" +
-                    "(?:established|founded|formed|created)\\s+" +
-                    "(?:in\\s+)?((?:18|19|20)\\d{2})\\.?$"
+    private static final Pattern REPORTED = Pattern.compile(
+        "\\b(?:said|reported|announced|confirmed|stated|recorded|wrote)\\b",
+        Pattern.CASE_INSENSITIVE
     );
 
+    @Autowired
     public ClaimEvidencePipeline(ObjectMapper json) {
+        this(json, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build());
+    }
+
+    ClaimEvidencePipeline(ObjectMapper json, HttpClient http) {
         this.json = json;
+        this.http = http;
     }
 
     // US-08: Extract claims without an artificial claim limit.
@@ -186,7 +186,7 @@ public class ClaimEvidencePipeline {
 
     private String classifyClaim(String sentence) {
 
-        if (sentence.endsWith("?")) {
+        if (sentence.matches("(?s).*\\?[\"”’)]*$")) {
             return "Question or non-claim";
         }
 
@@ -194,7 +194,7 @@ public class ClaimEvidencePipeline {
             return "Opinion";
         }
 
-        if (PREDICTION.matcher(sentence).find()) {
+        if (PREDICTION.matcher(sentence).find() && !REPORTED.matcher(sentence).find()) {
             return "Prediction";
         }
 
@@ -214,21 +214,11 @@ public class ClaimEvidencePipeline {
 
             try {
 
-                Matcher foundingMatcher =
-                        FOUNDING_CLAIM.matcher(sentence.trim());
-
-                String query;
-
-                if (foundingMatcher.matches()) {
-                    // Search for the organization rather than
-                    // the possibly incorrect year in the claim.
-                    query = foundingMatcher.group(1).trim();
-                } else {
-                    query = sentence.length() > 110
-                            ? sentence.substring(0, 110)
-                            : sentence;
-                }
-
+                String query = FoundingStatement.parse(sentence)
+                    .map(FoundingStatement::subject)
+                    .orElse(sentence);
+                int length = Math.min(160, query.codePointCount(0, query.length()));
+                query = query.substring(0, query.offsetByCodePoints(0, length));
                 List<Map<String, Object>> evidence =
                         searchWikipedia(query);
 
@@ -241,10 +231,6 @@ public class ClaimEvidencePipeline {
                                 : "RESULTS_FOUND"
                 );
 
-                claim.put(
-                        "finding",
-                        "Insufficient evidence"
-                );
 
                 claim.put(
                         "explanation",
@@ -301,59 +287,15 @@ public class ClaimEvidencePipeline {
         }
 
         List<Map<String, Object>> evidence = new ArrayList<>();
-        Set<String> urls = new HashSet<>();
-
+        Set<Long> pageIds = new HashSet<>();
         for (JsonNode result : results) {
-
             String title = result.path("title").asText("");
-            System.out.println("WIKIPEDIA RESULT: " + title);
-            System.out.println("SEARCH QUERY: " + query);
+            long pageId = result.path("pageid").asLong();
+            if (title.isBlank() || pageId <= 0 || !pageIds.add(pageId)) continue;
 
-            if (title.isBlank()) {
-                continue;
-            }
-            String normalizedQuery = query.toLowerCase(Locale.ROOT)
-                    .replaceAll("[^a-z0-9 ]", " ")
-                    .replaceAll("\\s+", " ")
-                    .trim();
-
-            String normalizedTitle = title.toLowerCase(Locale.ROOT)
-                    .replaceAll("[^a-z0-9 ]", " ")
-                    .replaceAll("\\s+", " ")
-                    .trim();
-
-            String cleanQuery = normalizedQuery.replaceFirst("^the\\s+", "");
-            String cleanTitle = normalizedTitle.replaceFirst("^the\\s+", "");
-
-            if (!cleanTitle.equals(cleanQuery)) {
-                continue;
-            }
-
-            String link =
-                    "https://en.wikipedia.org/wiki/" +
-                            URLEncoder.encode(
-                                    title.replace(' ', '_'),
-                                    StandardCharsets.UTF_8
-                            );
-
-            if (!urls.add(link)) {
-                continue;
-            }
-
-            String snippet = result.path("snippet")
-                    .asText("")
-                    .replaceAll("<[^>]*>", " ")
-                    .replaceAll("\\s+", " ")
-                    .strip();
-
-            // Retrieve the actual article introduction.
-            // This often contains founding dates missing
-            // from the short search-result snippet.
-            String articleExtract = fetchArticleExtract(title);
-
-            if (!articleExtract.isBlank()) {
-                snippet = articleExtract;
-            }
+            String link = "https://en.wikipedia.org/?curid=" + pageId;
+            String snippet = fetchArticleExtract(pageId);
+            if (snippet.isBlank()) continue;
 
             Map<String, Object> source = new LinkedHashMap<>();
 
@@ -361,14 +303,14 @@ public class ClaimEvidencePipeline {
             source.put("url", link);
             source.put("snippet", snippet);
 
-            source.put(
-                    "sourceType",
-                    "Tertiary encyclopedia"
-            );
+            source.put("sourceType", "Unknown");
+            source.put("sourceTypeReason", "Encyclopedia summary. The underlying source's role has not been established for this claim.");
+            source.put("independenceGroup", "Wikipedia");
+            source.put("independenceNote", "All retrieved passages come from Wikipedia. Independent corroboration has not been established.");
 
             source.put(
                     "relationship",
-                    "Context only — not verified support or contradiction"
+                    "Context only"
             );
 
             source.put("publisher", "Wikipedia");
@@ -380,18 +322,13 @@ public class ClaimEvidencePipeline {
         return evidence;
     }
 
-    private String fetchArticleExtract(String title) throws Exception {
+    private String fetchArticleExtract(long pageId) throws Exception {
 
         String extractUrl =
                 "https://en.wikipedia.org/w/api.php" +
                         "?action=query&prop=extracts" +
                         "&exintro=1&explaintext=1" +
-                        "&titles=" +
-                        URLEncoder.encode(
-                                title,
-                                StandardCharsets.UTF_8
-                        ) +
-                        "&format=json";
+                        "&pageids=" + pageId + "&format=json";
 
         JsonNode response = requestJson(extractUrl);
 
@@ -399,7 +336,7 @@ public class ClaimEvidencePipeline {
                 response.path("query").path("pages");
 
         if (!pages.isObject()) {
-            return "";
+            throw new IllegalStateException("Unexpected Wikipedia article response");
         }
 
         for (JsonNode page : pages) {

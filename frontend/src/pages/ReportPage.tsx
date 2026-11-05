@@ -13,8 +13,24 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { go } from "../lib/navigation";
-import type { VerificationReport } from "../types/report";
+import type { EvidenceSource, VerificationReport } from "../types/report";
 import { Badge, Note } from "../components/UI";
+function EvidenceCard({ source }: { source: EvidenceSource }) {
+  return (
+    <div className="evidence-card">
+      <span className="eyebrow">{source.sourceType || "Unknown"} · {source.relationship}</span>
+      <h3>
+        {/^https?:\/\//i.test(source.url) ? (
+          <a href={source.url} target="_blank" rel="noreferrer">{source.title || source.url} ↗</a>
+        ) : source.title}
+      </h3>
+      {source.quote ? <blockquote>“{source.quote}”</blockquote> : <p>{source.snippet}</p>}
+      <small>{source.publisher || "Unknown"} · Publication date: {source.publicationDate || "Unavailable"}</small>
+      {source.sourceTypeReason && <p className="fine-print">{source.sourceTypeReason}</p>}
+    </div>
+  );
+}
+
 export function ReportPage({
   report,
   saved,
@@ -32,6 +48,13 @@ export function ReportPage({
   }, [report.id]);
   const claim = report.claims[index];
   const sample = report.sample;
+  const evidence = claim?.evidence ?? [];
+  const sources = Array.from(new Map(evidence.map((source) => [source.url, source])).values());
+  const evidenceGroups = [
+    { title: "Supporting evidence", relation: "Supports claim", style: "support", passages: claim?.support ?? [] },
+    { title: "Contradicting evidence", relation: "Contradicts claim", style: "against", passages: claim?.against ?? [] },
+    { title: "Contextual sources", relation: "Context only", style: "context", passages: [] },
+  ];
   function download() {
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }),
@@ -116,7 +139,7 @@ export function ReportPage({
       )}
       <div className="report-disclaimer">
         <Info size={17} />
-        {sample ? "This is a fictional example, not a live verification." : report.status === "COMPLETED" ? "Claim extraction and public-source discovery finished. Search results are not proof; any unresolved claims remain Insufficient evidence or Not assessed." : report.status === "FAILED" ? "Verification failed. Available partial claims are shown below." : "Verification is still in progress. No final verdict is available."}
+        {sample ? "This is a fictional example, not a live verification." : report.status === "COMPLETED" ? "Claim extraction and public-source discovery finished. Search results are not proof; any unresolved claims remain Insufficient evidence or Not assessed." : report.status === "FAILED" ? "Verification failed. The partial findings below are incomplete." : report.status === "AWAITING_VERIFICATION" ? "This older request was prepared for verification. Submit it again to run the current workflow." : "Verification is still in progress. No final verdict is available."}
       </div>
       {report.error && <p className="error" role="alert">{report.error}</p>}
       <div className="report-layout">
@@ -188,7 +211,7 @@ export function ReportPage({
                     className={tab === t ? "selected" : ""}
                   >
                     {t}
-                    {t === "Evidence" && <span>{claim.support.length + claim.against.length}</span>}
+                    {t === "Evidence" && <span>{sample ? claim.support.length + claim.against.length : evidence.length}</span>}
                   </button>
                 ))}
               </div>
@@ -233,54 +256,31 @@ export function ReportPage({
                       <p>
                         {sample
                           ? "Fictional passages show how both sides of a claim will be presented."
-                          : `Evidence search: ${claim.searchStatus || "Not started"}. ${claim.searchError || "Search hits are contextual leads, not confirmed support."}`}
+                          : `Evidence search: ${claim.searchStatus || "Not started"}. ${claim.searchError || "Passages are grouped by how they relate to this claim."}`}
                       </p>
                     </div>
-                    {!sample && (claim.evidence || []).map((source) => (
-                      <div className="evidence-card" key={source.url}>
-                        <span className="eyebrow">{source.sourceType} · {source.relationship}</span>
-                        <h3><a href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a></h3>
-                        <p>{source.snippet}</p>
-                        <small>{source.publisher} · Publication date: {source.publicationDate}</small>
-                      </div>
-                    ))}
-                    {[
-                      ["Supporting evidence", claim.support, "support"],
-                      ["Contradicting evidence", claim.against, "against"],
-                    ].map(([title, items, type]) => (
-                      <section className={"evidence-section " + type} key={title as string}>
-                        <h3>
-                          {title as string}
-                          <span>{(items as string[]).length}</span>
-                        </h3>
-                        {(items as string[]).length ? (
-                          (items as string[]).map((text, i) => (
-                            <div className="evidence-card" key={text}>
-                              <span className="eyebrow">
-                                FICTIONAL EXCERPT ·{" "}
-                                {type === "support"
-                                  ? "SUPPORTING PASSAGE"
-                                  : "SAMPLE ELIGIBILITY TERMS"}
-                              </span>
-                              <blockquote>“{text}”</blockquote>
-                              <div>
-                                <span>
-                                  Source type:{" "}
-                                  {type === "support" ? "Unknown (illustrative)" : "Unknown"}
-                                </span>
-                                <span>Publication date: unavailable</span>
-                              </div>
+                    {evidenceGroups.filter((group) => !sample || group.style !== "context").map((group) => {
+                      const items = sample ? [] : evidence.filter((source) =>
+                        group.style === "context"
+                          ? !["Supports claim", "Contradicts claim"].includes(source.relationship)
+                          : source.relationship === group.relation,
+                      );
+                      const passages = items.length ? [] : group.passages;
+                      return (
+                        <section className={"evidence-section " + group.style} key={group.title}>
+                          <h3>{group.title}<span>{items.length + passages.length}</span></h3>
+                          {items.map((source) => <EvidenceCard source={source} key={source.url + (source.quote || "")} />)}
+                          {passages.map((passage, i) => (
+                            <div className="evidence-card" key={i}>
+                              <span className="eyebrow">{sample ? "Fictional excerpt" : "Stored passage"}</span>
+                              <blockquote>“{passage}”</blockquote>
                             </div>
-                          ))
-                        ) : (
-                          <p className="empty-evidence">
-                            {sample
-                              ? "No passage is included for this side of the fictional example."
-                              : "No evidence has been retrieved."}
-                          </p>
-                        )}
-                      </section>
-                    ))}
+                          ))}
+                          {!items.length && !passages.length && <p className="empty-evidence">No passages in this section.</p>}
+                        </section>
+                      );
+                    })}
+                    {!sample && sources[0]?.independenceNote && <Note>{sources[0].independenceNote}</Note>}
                     <Note>
                       A missing contradicting passage does not prove a claim is supported. Evidence
                       must be relevant, current, and independent.
@@ -330,68 +330,12 @@ export function ReportPage({
                         </div>
                       </div>
                     ) : (
-                        <div>
-                          {(claim.evidence || []).length > 0 ? (
-                              <>
-                                <p>
-                                  Retrieved sources for this claim. Search results are not
-                                  automatically verified evidence.
-                                </p>
-
-                                {Array.from(
-                                    new Map(
-                                        (claim.evidence || []).map((source) => [
-                                          source.url.trim().replace(/\/$/, "").toLowerCase(),
-                                          source,
-                                        ])
-                                    ).values()
-                                ).map((source) => (
-                                    <div className="evidence-card" key={source.url}>
-          <span className="eyebrow">
-            {source.sourceType || "Unclassified"} ·{" "}
-            {source.relationship || "Contextual source"}
-          </span>
-
-                                      <h3>
-                                        <a
-                                            href={source.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                        >
-                                          {source.title || source.url} ↗
-                                        </a>
-                                      </h3>
-
-                                      <p>{source.snippet || "No description available."}</p>
-
-                                      <small>
-                                        Publisher: {source.publisher || "Unknown"}
-                                        {" · "}
-                                        Publication date: {source.publicationDate || "Unavailable"}
-                                      </small>
-
-                                      <p className="fine-print">
-                                        Source URL:{" "}
-                                        <a
-                                            href={source.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={{ overflowWrap: "anywhere" }}
-                                        >
-                                          {source.url}
-                                        </a>
-                                      </p>
-                                    </div>
-                                ))}
-                              </>
-                          ) : (
-                              <p>
-                                {claim.searchError
-                                    ? `Source search failed: ${claim.searchError}`
-                                    : "No sources were retrieved for this claim."}
-                              </p>
-                          )}
-                        </div>
+                      <div>
+                        {sources.length
+                          ? sources.map((source) => <EvidenceCard key={source.url} source={source} />)
+                          : <p>{claim.searchError || "No sources were retrieved for this claim."}</p>}
+                        {sources[0]?.independenceNote && <Note>{sources[0].independenceNote}</Note>}
+                      </div>
                     )}
                     <button className="text-button" onClick={() => go("sources")}>
                       Explore the source library <ArrowUpRight size={15} />

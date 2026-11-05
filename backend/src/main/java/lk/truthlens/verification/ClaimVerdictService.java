@@ -1,251 +1,119 @@
 package lk.truthlens.verification;
 
-import org.springframework.stereotype.Service;
-
+import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.springframework.stereotype.Service;
 
 @Service
 public class ClaimVerdictService {
-
-    private static final Pattern YEAR =
-            Pattern.compile("\\b(?:18|19|20)\\d{2}\\b");
-
-    private static final Pattern ESTABLISHED_CLAIM =
-            Pattern.compile(
-                    "(?i)^(.+?)\\s+(?:was|were|is)\\s+" +
-                            "(?:established|founded|formed|created)\\s+" +
-                            "(?:in\\s+)?((?:18|19|20)\\d{2})\\.?$"
-            );
-
-    private static final Pattern FOUNDING_EVIDENCE =
-            Pattern.compile(
-                    "(?i)\\b(?:established|founded|formed|created|" +
-                            "establishment|foundation|inception)\\b"
-            );
+    private record Passage(String quote, boolean supports) {}
 
     public void assess(List<Map<String, Object>> claims) {
+        for (var claim : claims) assessClaim(claim);
+    }
 
-        for (Map<String, Object> claim : claims) {
+    private void assessClaim(Map<String, Object> claim) {
+        if (!"Potential factual claim".equals(claim.get("claimType"))) return;
+        if ("SEARCH_FAILED".equals(claim.get("searchStatus"))) {
+            finding(claim, "Not assessed", "Evidence search failed. This claim could not be assessed.");
+            return;
+        }
+        if (!"RESULTS_FOUND".equals(claim.get("searchStatus"))
+            || !(claim.get("evidence") instanceof List<?> sources)) {
+            finding(claim, "Insufficient evidence", "No usable evidence was retrieved for this claim.");
+            return;
+        }
 
-            String type = text(claim, "claimType");
-            String status = text(claim, "searchStatus");
-
-            if (!"Potential factual claim".equals(type)) {
-                claim.put("finding", "Not assessed");
-                claim.put("confidence", "Not assessed");
+        String statement = value(claim, "text");
+        List<Map<String, Object>> evidence = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        List<String> support = new ArrayList<>();
+        List<String> against = new ArrayList<>();
+        for (Object item : sources) {
+            if (!(item instanceof Map<?, ?> source)) continue;
+            String url = value(source, "url");
+            if (!url.startsWith("https://") || !seen.add(url)) continue;
+            List<Passage> matches = matchPassages(statement, value(source, "title"), value(source, "snippet"));
+            if (matches.isEmpty()) {
+                evidence.add(evidenceItem(source, "Context only", null));
                 continue;
             }
-
-            if ("SEARCH_FAILED".equals(status)) {
-                claim.put("finding", "Not assessed");
-                claim.put("confidence", "Not assessed");
-                claim.put(
-                        "explanation",
-                        "Evidence retrieval failed. The claim could not be assessed."
-                );
-                continue;
+            for (Passage passage : matches) {
+                List<String> side = passage.supports() ? support : against;
+                if (!side.contains(passage.quote())) side.add(passage.quote());
+                evidence.add(evidenceItem(source, passage.supports() ? "Supports claim" : "Contradicts claim", passage.quote()));
             }
+        }
 
-            if (!"RESULTS_FOUND".equals(status)) {
-                insufficient(
-                        claim,
-                        "No usable public evidence was retrieved."
-                );
-                continue;
-            }
-
-            String statement = text(claim, "text");
-
-            Matcher claimMatcher =
-                    ESTABLISHED_CLAIM.matcher(statement.trim());
-
-            if (!claimMatcher.matches()) {
-                insufficient(
-                        claim,
-                        "The available rule-based verifier cannot reliably " +
-                                "assess this type of factual claim."
-                );
-                continue;
-            }
-
-            String subject = normalize(claimMatcher.group(1));
-            String claimedYear = claimMatcher.group(2);
-
-            Object rawEvidence = claim.get("evidence");
-
-            if (!(rawEvidence instanceof List<?> sources)) {
-                insufficient(claim, "No usable evidence was available.");
-                continue;
-            }
-
-            List<String> supporting = new ArrayList<>();
-            List<String> contradicting = new ArrayList<>();
-
-            Set<String> processedUrls = new HashSet<>();
-
-            for (Object item : sources) {
-
-                if (!(item instanceof Map<?, ?> source)) {
-                    continue;
-                }
-
-                String url = sourceValue(source, "url");
-
-                if (url.isBlank() || !processedUrls.add(url)) {
-                    continue;
-                }
-
-                String title = sourceValue(source, "title");
-                String snippet = sourceValue(source, "snippet");
-
-                System.out.println("CHECK SUBJECT: " + subject);
-                System.out.println("CHECK TITLE: " + title);
-                System.out.println("SUBJECT MATCH: " + sameSubject(subject, title));
-                if (!sameSubject(subject, title)) {
-                    continue;
-                }
-
-                if (!FOUNDING_EVIDENCE.matcher(snippet).find()) {
-                    continue;
-                }
-
-                Pattern foundingDate = Pattern.compile(
-                        "(?i)\\b(?:was|were)\\s+" +
-                                "(?:established|founded|formed|created)\\s+" +
-                                "(?:on\\s+\\d{1,2}\\s+[A-Za-z]+\\s+|in\\s+)?" +
-                                "((?:18|19|20)\\d{2})\\b"
-                );
-                System.out.println("VERDICT DEBUG - Article: " + title);
-                System.out.println("VERDICT DEBUG - Founding date text: " +
-                        snippet.substring(0, Math.min(snippet.length(), 1200)));
-
-                Matcher dateMatcher = foundingDate.matcher(snippet);
-
-                if (!dateMatcher.find()) {
-                    System.out.println("DATE MATCH FAILED: " + title);
-                    continue;
-                }
-
-                System.out.println(
-                        "DATE MATCH FOUND: " + title +
-                                " | Evidence year: " + dateMatcher.group(1) +
-                                " | Claimed year: " + claimedYear
-                );
-
-                String evidenceYear = dateMatcher.group(1);
-
-                String sourceDescription = title + " — " + url;
-
-                if (claimedYear.equals(evidenceYear)) {
-                    supporting.add(sourceDescription);
-                } else {
-                    contradicting.add(sourceDescription);
-                }
-            }
-
-            claim.put("candidateSupportCount", supporting.size());
-            claim.put("candidateContradictionCount", contradicting.size());
-            claim.put("candidateSupportingSources", supporting);
-            claim.put("candidateContradictingSources", contradicting);
-
-            if (!supporting.isEmpty() && !contradicting.isEmpty()) {
-
-                claim.put("finding", "Mixed");
-                claim.put("confidence", "Low");
-                claim.put(
-                        "explanation",
-                        "Public-source snippets contain conflicting founding " +
-                                "years for the named organization. Manual review is recommended."
-                );
-
-            } else if (!supporting.isEmpty()) {
-
-                claim.put("finding", "Supported");
-                claim.put("confidence", "Low");
-                claim.put(
-                        "explanation",
-                        "A relevant public-source snippet mentions the same " +
-                                "founding year as the claim. This is an automated " +
-                                "preliminary assessment, not independent verification."
-                );
-
-            } else if (!contradicting.isEmpty()) {
-
-                claim.put("finding", "Contradicted");
-                claim.put("confidence", "Low");
-                claim.put(
-                        "explanation",
-                        "A relevant public-source snippet mentions a different " +
-                                "founding year. This is an automated preliminary " +
-                                "assessment and should be manually verified."
-                );
-
-            } else {
-
-                insufficient(
-                        claim,
-                        "The retrieved snippets do not clearly establish " +
-                                "the organization's founding year."
-                );
-            }
+        claim.put("evidence", evidence);
+        claim.put("support", support);
+        claim.put("against", against);
+        if (!support.isEmpty() && !against.isEmpty()) {
+            finding(claim, "Mixed evidence", "Retrieved passages give conflicting findings for this claim.");
+        } else if (!support.isEmpty()) {
+            finding(claim, "Supported", "A retrieved passage states this claim or gives the same year for the named event.");
+        } else if (!against.isEmpty()) {
+            finding(claim, "Contradicted", "A retrieved passage gives a different year for the same named entity and event.");
+        } else {
+            finding(claim, "Insufficient evidence", "The retrieved passages do not directly support or contradict this claim under the current assessment rules.");
         }
     }
 
-    private void insufficient(
-            Map<String, Object> claim,
-            String explanation
-    ) {
-        claim.put("finding", "Insufficient evidence");
-        claim.put("confidence", "Not assessed");
+    private List<Passage> matchPassages(String statement, String title, String extract) {
+        var foundingClaim = FoundingStatement.parse(statement).filter(FoundingStatement::yearOnly);
+        var sentences = BreakIterator.getSentenceInstance(Locale.ENGLISH);
+        sentences.setText(extract);
+        List<Passage> matches = new ArrayList<>();
+        for (int start = sentences.first(), end = sentences.next(); end != BreakIterator.DONE;
+             start = end, end = sentences.next()) {
+            String sentence = extract.substring(start, end).strip();
+            if (!sentence.endsWith(".") && !sentence.endsWith("!")) continue;
+            if (normalized(statement).equals(normalized(sentence))) {
+                matches.add(new Passage(sentence, true));
+                continue;
+            }
+            if (foundingClaim.isEmpty()) continue;
+            var passage = FoundingStatement.parse(sentence);
+            if (passage.isEmpty()) continue;
+            var claim = foundingClaim.get();
+            var fact = passage.get();
+            if (claim.event().equals(fact.event())
+                && FoundingStatement.name(claim.subject()).equals(FoundingStatement.name(title))
+                && claim.matchesSubject(fact.subject(), title)) {
+                matches.add(new Passage(sentence, claim.year().equals(fact.year())));
+            }
+        }
+        return matches.stream().distinct().toList();
+    }
+
+    private Map<String, Object> evidenceItem(Map<?, ?> source, String relationship, String quote) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        source.forEach((key, val) -> result.put(String.valueOf(key), val));
+        result.put("relationship", relationship);
+        if (quote != null) result.put("quote", quote);
+        return result;
+    }
+
+    private void finding(Map<String, Object> claim, String finding, String explanation) {
+        claim.put("finding", finding);
         claim.put("explanation", explanation);
+        claim.put("confidence", switch (finding) {
+            case "Supported", "Contradicted", "Mixed evidence" -> "Low";
+            default -> "Not assessed";
+        });
     }
 
-    private boolean sameSubject(String subject, String title) {
-
-        String cleanSubject = normalize(subject)
-                .replaceFirst("^the\\s+", "");
-
-        String cleanTitle = normalize(title)
-                .replaceFirst("^the\\s+", "");
-
-        return cleanSubject.equals(cleanTitle);
+    private String normalized(String text) {
+        return text.strip().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").replaceFirst("[.!]$", "");
     }
 
-    private String normalize(String value) {
-        return value.toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9 ]", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
-    }
-
-    private Set<String> extractYears(String text) {
-
-        Set<String> years = new LinkedHashSet<>();
-
-        Matcher matcher = YEAR.matcher(text);
-
-        while (matcher.find()) {
-            years.add(matcher.group());
-        }
-
-        return years;
-    }
-
-    private String text(Map<String, Object> map, String key) {
-        Object value = map.get(key);
-        return value == null ? "" : value.toString();
-    }
-
-    private String sourceValue(Map<?, ?> map, String key) {
-        Object value = map.get(key);
-        return value == null ? "" : value.toString();
+    private String value(Map<?, ?> map, String key) {
+        return map.get(key) instanceof String text ? text : "";
     }
 }

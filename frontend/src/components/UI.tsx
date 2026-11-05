@@ -11,6 +11,7 @@ export function Brand() {
   );
 }
 export function Badge({ finding }: { finding: Finding }) {
+  if (finding === "Mixed") finding = "Mixed evidence";
   const Icon =
     finding === "Supported"
       ? Check

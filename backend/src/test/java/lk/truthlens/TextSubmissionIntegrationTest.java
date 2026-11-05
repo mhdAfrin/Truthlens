@@ -1,6 +1,8 @@
 package lk.truthlens;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -12,6 +14,7 @@ import lk.truthlens.model.Submission;
 import lk.truthlens.repository.SubmissionRepository;
 import lk.truthlens.service.SubmissionPolicy;
 import lk.truthlens.verification.VerificationOrchestrator;
+import lk.truthlens.verification.ClaimEvidencePipeline;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -19,7 +22,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.*;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -37,6 +42,9 @@ class TextSubmissionIntegrationTest {
 
     @Autowired
     VerificationOrchestrator workflow;
+
+    @MockitoSpyBean
+    ClaimEvidencePipeline pipeline;
 
     @Autowired
     SubmissionPolicy policy;
@@ -197,7 +205,7 @@ class TextSubmissionIntegrationTest {
     @Test
     void persistedPendingWorkIsRecoverableAndPreparationIsIdempotent() throws Exception {
         var g = guest();
-        var reply = accepted(g, "Durable intake record.");
+        var reply = accepted(g, "I think this is a useful article.");
         var id = UUID.fromString(reply.get("id").asText());
 
         // A new submission starts in the queue.
@@ -230,6 +238,37 @@ class TextSubmissionIntegrationTest {
                 snapshot,
                 records.findById(id).orElseThrow().getReportJson()
         );
+    }
+
+    @Test
+    void guestCanReadSearchStageBeforeEvidenceRetrievalFinishes() throws Exception {
+        var g = guest();
+        var reply = accepted(g, "Example University was founded in 1990.");
+        String reportPath = "/api/verifications/" + reply.get("id").asText();
+        workflow.preparePending();
+
+        doAnswer(invocation -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            mvc.perform(get(reportPath).session(g.session()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PROCESSING"))
+                .andExpect(jsonPath("$.stage").value("SEARCHING_EVIDENCE"))
+                .andExpect(jsonPath("$.claims[0].text").value("Example University was founded in 1990."));
+            List<Map<String, Object>> claims = invocation.getArgument(0);
+            claims.get(0).put("searchStatus", "RESULTS_FOUND");
+            claims.get(0).put("evidence", List.of(Map.of(
+                "title", "Example University", "url", "https://en.wikipedia.org/?curid=123",
+                "snippet", "Example University was founded in 1990."
+            )));
+            return null;
+        }).when(pipeline).search(anyList());
+
+        workflow.preparePending();
+        mvc.perform(get(reportPath).session(g.session()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("COMPLETED"))
+            .andExpect(jsonPath("$.claims[0].finding").value("Supported"))
+            .andExpect(jsonPath("$.claims[0].evidence[0].quote").value("Example University was founded in 1990."));
     }
 
     @Test
