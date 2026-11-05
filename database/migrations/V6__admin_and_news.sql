@@ -1,0 +1,11 @@
+CREATE TABLE admin_audit (
+ id UUID PRIMARY KEY, actor VARCHAR(254) NOT NULL, action VARCHAR(80) NOT NULL,
+ target VARCHAR(100) NOT NULL, created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+CREATE TABLE news_entries (
+ id UUID PRIMARY KEY, title VARCHAR(180) NOT NULL, summary VARCHAR(600) NOT NULL,
+ source_url VARCHAR(2048) NOT NULL, publisher VARCHAR(100) NOT NULL,
+ published_at TIMESTAMP WITH TIME ZONE NOT NULL, visible BOOLEAN NOT NULL DEFAULT FALSE,
+ breaking BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX news_visible_date ON news_entries(visible,published_at);

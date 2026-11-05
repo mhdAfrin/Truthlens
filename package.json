@@ -1,0 +1,12 @@
+{
+  "name": "truthlens",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm install --prefix frontend",
+    "dev": "node backend/scripts/dev.mjs",
+    "build": "npm run build --prefix frontend",
+    "test": "npm test --prefix frontend",
+    "test:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File backend/scripts/start-api.ps1 -Mode Test"
+  }
+}
