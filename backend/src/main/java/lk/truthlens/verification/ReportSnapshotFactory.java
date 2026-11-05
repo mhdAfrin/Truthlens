@@ -67,7 +67,7 @@ public final class ReportSnapshotFactory {
         try {
             var report = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(snapshot(row, json, TextStatistics.measure(row.getContent()), stage));
             report.set("claims", json.valueToTree(claims));
-            report.put("evidenceMethod", "Wikipedia public search (discovery only; no automatic truth verification)");
+            report.put("evidenceMethod", "Wikipedia retrieval and direct-passage assessment. Independent corroboration is unavailable.");
             return json.writeValueAsString(report);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException("Could not save claim report", e);
@@ -77,7 +77,9 @@ public final class ReportSnapshotFactory {
     public static String failure(Submission row, ObjectMapper json, String error) {
         try {
             var report = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(row.getReportJson());
-            report.put("stage", "FAILED"); report.put("error", error);
+            report.put("status", "FAILED");
+            report.put("stage", "FAILED");
+            report.put("error", error);
             return json.writeValueAsString(report);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException("Could not save partial report", e);
