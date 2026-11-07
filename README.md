@@ -1,6 +1,7 @@
 # TruthLens
 
 **Multi-Agent AI-Based News Article Verification System**
+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-model api key
 
 TruthLens is a web application designed to verify news articles using AI-based claim analysis, evidence retrieval, and source credibility evaluation.
 
